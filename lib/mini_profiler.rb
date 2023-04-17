@@ -228,7 +228,6 @@ module Rack
       MiniProfiler.deauthorize_request if @config.authorization_mode == :allow_authorized
 
       status = headers = body = nil
-      query_string = env['QUERY_STRING']
       path         = env['PATH_INFO'].sub('//', '/')
 
       # Someone (e.g. Rails engine) could change the SCRIPT_NAME so we save it
@@ -359,7 +358,7 @@ module Rack
         # Prevent response body from being compressed
         env['HTTP_ACCEPT_ENCODING'] = 'identity' if config.suppress_encoding
 
-        if matches_action?('flamegraph') || matches_action?('async-flamegraph') || env['HTTP_REFERER'] =~ /pp=async-flamegraph/
+        if matches_action?('flamegraph', env) || matches_action?('async-flamegraph', env) || env['HTTP_REFERER'] =~ /pp=async-flamegraph/
           if defined?(StackProf) && StackProf.respond_to?(:run)
             # do not sully our profile with mini profiler timings
             current.measure = false
