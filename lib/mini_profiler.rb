@@ -362,7 +362,7 @@ module Rack
           if defined?(StackProf) && StackProf.respond_to?(:run)
             # do not sully our profile with mini profiler timings
             current.measure = false
-            match_data      = query_string.match(/flamegraph_sample_rate=([\d\.]+)/)
+            match_data      = action_parameters(env)['flamegraph_sample_rate']
 
             if match_data && !match_data[1].to_f.zero?
               sample_rate = match_data[1].to_f
@@ -370,7 +370,7 @@ module Rack
               sample_rate = config.flamegraph_sample_rate
             end
 
-            mode_match_data = query_string.match(/flamegraph_mode=([a-zA-Z]+)/)
+            mode_match_data = action_parameters(env)['flamegraph_mode']
 
             if mode_match_data && [:cpu, :wall, :object, :custom].include?(mode_match_data[1].to_sym)
               mode = mode_match_data[1].to_sym
@@ -428,7 +428,7 @@ module Rack
       if trace_exceptions
         body.close if body.respond_to? :close
 
-        query_params = Rack::Utils.parse_nested_query(query_string)
+        query_params = action_parameters(env)
         trace_exceptions_filter = query_params['trace_exceptions_filter']
         if trace_exceptions_filter
           trace_exceptions_regex = Regexp.new(trace_exceptions_filter)
@@ -494,6 +494,10 @@ module Rack
       env['QUERY_STRING'] =~ /#{@config.profile_parameter}=#{action}/ ||
         env['HTTP_X_RACK_MINI_PROFILER'] == action
     end
+
+    def action_parameters(env)
+      query_params = Rack::Utils.parse_nested_query(env['QUERY_STRING'])
+    end 
 
     def inject_profiler(env, status, headers, body)
       # mini profiler is meddling with stuff, we can not cache cause we will get incorrect data
@@ -833,7 +837,7 @@ module Rack
       MiniProfiler.authorize_request
       status = 200
       headers = { 'Content-Type' => 'text/html' }
-      qp = Rack::Utils.parse_nested_query(env['QUERY_STRING'])
+      qp = action_parameters(env)
       if group_name = qp["group_name"]
         list = @storage.snapshots_group(group_name)
         list.each do |snapshot|
