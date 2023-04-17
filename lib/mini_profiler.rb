@@ -234,7 +234,7 @@ module Rack
       # Someone (e.g. Rails engine) could change the SCRIPT_NAME so we save it
       env['RACK_MINI_PROFILER_ORIGINAL_SCRIPT_NAME'] = ENV['PASSENGER_BASE_URI'] || env['SCRIPT_NAME']
 
-      skip_it = /#{@config.profile_parameter}=skip/.match?(query_string) || (
+      skip_it = matches_action?('skip', env) || (
         @config.skip_paths &&
         @config.skip_paths.any? do |p|
           if p.instance_of?(String)
@@ -266,11 +266,11 @@ module Rack
 
       has_disable_cookie = client_settings.disable_profiling?
       # manual session disable / enable
-      if query_string =~ /#{@config.profile_parameter}=disable/ || has_disable_cookie
+      if matches_action?('disable', env) || has_disable_cookie
         skip_it = true
       end
 
-      if query_string =~ /#{@config.profile_parameter}=enable/
+      if matches_action?('enable', env)
         skip_it = false
         config.enabled = true
       end
@@ -284,14 +284,14 @@ module Rack
       end
 
       # profile gc
-      if query_string =~ /#{@config.profile_parameter}=profile-gc/
+      if matches_action?('profile-gc', env)
         return tool_disabled_message(client_settings) if !advanced_debugging_enabled?
         current.measure = false if current
         return client_settings.handle_cookie(Rack::MiniProfiler::GCProfiler.new.profile_gc(@app, env))
       end
 
       # profile memory
-      if query_string =~ /#{@config.profile_parameter}=profile-memory/
+      if matches_action?('profile-memory', env)
         return tool_disabled_message(client_settings) if !advanced_debugging_enabled?
 
         unless defined?(MemoryProfiler) && MemoryProfiler.respond_to?(:report)
@@ -321,12 +321,12 @@ module Rack
 
       MiniProfiler.create_current(env, @config)
 
-      if query_string =~ /#{@config.profile_parameter}=normal-backtrace/
+      if matches_action?('normal-backtrace', env)
         client_settings.backtrace_level = ClientSettings::BACKTRACE_DEFAULT
-      elsif query_string =~ /#{@config.profile_parameter}=no-backtrace/
+      elsif matches_action?('no-backtrace', env)
         current.skip_backtrace = true
         client_settings.backtrace_level = ClientSettings::BACKTRACE_NONE
-      elsif query_string =~ /#{@config.profile_parameter}=full-backtrace/ || client_settings.backtrace_full?
+      elsif matches_action?('full-backtrace', env) || client_settings.backtrace_full?
         current.full_backtrace = true
         client_settings.backtrace_level = ClientSettings::BACKTRACE_FULL
       elsif client_settings.backtrace_none?
@@ -335,7 +335,7 @@ module Rack
 
       flamegraph = nil
 
-      trace_exceptions = query_string =~ /#{@config.profile_parameter}=trace-exceptions/ && defined? TracePoint
+      trace_exceptions = matches_action?('trace-exceptions', env) && defined? TracePoint
       status, headers, body, exceptions, trace = nil
 
       if trace_exceptions
@@ -439,19 +439,19 @@ module Rack
         return client_settings.handle_cookie(dump_exceptions exceptions)
       end
 
-      if query_string =~ /#{@config.profile_parameter}=env/
+      if matches_action?("env", env)
         return tool_disabled_message(client_settings) if !advanced_debugging_enabled?
         body.close if body.respond_to? :close
         return client_settings.handle_cookie(dump_env env)
       end
 
-      if query_string =~ /#{@config.profile_parameter}=analyze-memory/
+      if matches_action?("analyze-memory", env)
         return tool_disabled_message(client_settings) if !advanced_debugging_enabled?
         body.close if body.respond_to? :close
         return client_settings.handle_cookie(analyze_memory)
       end
 
-      if query_string =~ /#{@config.profile_parameter}=help/
+      if matches_action?("help", env)
         body.close if body.respond_to? :close
         return client_settings.handle_cookie(help(client_settings, env))
       end
@@ -460,7 +460,7 @@ module Rack
       page_struct[:user] = user(env)
       page_struct[:root].record_time((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000)
 
-      if flamegraph && query_string =~ /#{@config.profile_parameter}=flamegraph/
+      if flamegraph && matches_action?("flamegraph", env)
         body.close if body.respond_to? :close
         return client_settings.handle_cookie(self.flamegraph(flamegraph, path))
       elsif flamegraph # async-flamegraph
@@ -489,6 +489,11 @@ module Rack
     ensure
       # Make sure this always happens
       self.current = nil
+    end
+
+    def matches_action?(action, env)
+      env['QUERY_STRING'] =~ /#{@config.profile_parameter}=#{action}/ ||
+        env['HTTP_X_RACK_MINI_PROFILER'] == action
     end
 
     def inject_profiler(env, status, headers, body)

@@ -648,4 +648,11 @@ describe Rack::MiniProfiler do
       expect(last_response.body).to eq("Snapshot with id '&quot;&gt;&lt;qss&gt;' not found"), "id should be escaped to prevent XSS"
     end
   end
+
+  describe 'when triggering via HTTP header' do
+    it 'can trigger the help option via an HTTP header' do
+      get '/html', nil, { 'HTTP_X_RACK_MINI_PROFILER' => 'help' }
+      expect(last_response.body).to include('This is the help menu')
+    end
+  end
 end
