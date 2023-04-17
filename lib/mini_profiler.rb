@@ -359,7 +359,7 @@ module Rack
         # Prevent response body from being compressed
         env['HTTP_ACCEPT_ENCODING'] = 'identity' if config.suppress_encoding
 
-        if query_string =~ /pp=(async-)?flamegraph/ || env['HTTP_REFERER'] =~ /pp=async-flamegraph/
+        if matches_action?('flamegraph') || matches_action?('async-flamegraph') || env['HTTP_REFERER'] =~ /pp=async-flamegraph/
           if defined?(StackProf) && StackProf.respond_to?(:run)
             # do not sully our profile with mini profiler timings
             current.measure = false
